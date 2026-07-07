@@ -7,7 +7,7 @@ import {
   CheckCircle, AlertTriangle, BookMarked,
   FileText, RefreshCw, ChevronDown, MapPin, Mail, Phone,
   DollarSign, RotateCcw, Check, Upload, Save, Settings,
-  Activity
+  Activity, Send
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -25,11 +25,12 @@ import uinLogo from "@/imports/image.png";
 // ─────────────────────────────────────────
 type Page =
   | "landing" | "login"
-  | "dashboard" | "catalog" | "book-detail"
+  | "dashboard" | "dosen-dashboard" | "catalog" | "book-detail"
   | "ebook" | "borrow-form" | "borrow-success"
-  | "return-form" | "loans" | "notifications" | "profile"
+  | "return-form" | "loans" | "notifications" | "profile" | "dosen-profile"
   | "admin-dashboard" | "admin-books" | "admin-members"
-  | "admin-loans" | "admin-reports" | "admin-settings" | "admin-notifications";
+  | "admin-loans" | "admin-reports" | "admin-settings" | "admin-notifications"
+  | "admin-suggestions";
 
 interface Book {
   id: string; title: string; author: string; category: string;
@@ -50,11 +51,43 @@ interface Notification {
   title: string; message: string; date: string; read: boolean;
 }
 
+type SuggestionStatus = "Menunggu" | "Disetujui" | "Ditolak";
+
+interface BookSuggestion {
+  id: string;
+  judul: string;
+  penulis: string;
+  penerbit: string;
+  tahun: string;
+  pengusul: string;
+  status: SuggestionStatus;
+  tanggal: string;
+}
+
+interface BookSuggestionInput {
+  judul: string;
+  penulis: string;
+  penerbit: string;
+  tahun: string;
+  isbn: string;
+  alasan: string;
+}
+
 interface Anggota {
   id: string; name: string; studentId: string; email: string;
   department: string; activeLoans: number; totalLoans: number;
   joinDate: string; status: "active" | "ditangguhkan";
   membershipExpiry?: string;
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map(part => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 // ─────────────────────────────────────────
@@ -426,19 +459,32 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
 // ─────────────────────────────────────────
 // LAYOUT: TOP NAV
 // ─────────────────────────────────────────
-function TopNav({ navigate, currentPage, unreadCount }: {
-  navigate: (p: Page) => void; currentPage: Page; unreadCount: number;
+function TopNav({ navigate, currentPage, unreadCount, userRole = "mahasiswa", userName }: {
+  navigate: (p: Page) => void; currentPage: Page; unreadCount: number; userRole?: Role; userName?: string;
 }) {
   const [mobileMenu, setMobileMenu] = useState(false);
-  const navLinks: { label: string; page: Page }[] = [
+  const navLinks: { label: string; page: "dashboard" | "catalog" | "loans" }[] = [
     { label: "Beranda", page: "dashboard" },
     { label: "Katalog", page: "catalog" },
     { label: "Pinjaman Saya", page: "loans" },
   ];
+  const isDosen = userRole === "dosen";
+  const activeNavPage: Page = currentPage === "dosen-dashboard" || currentPage === "dosen-profile" ? "dashboard" : currentPage;
+  const dashboardRoute: Page = isDosen ? "dosen-dashboard" : "dashboard";
+  const profileRoute: Page = isDosen ? "dosen-profile" : "profile";
+  const routeMap: Record<"dashboard" | "catalog" | "loans", Page> = {
+    dashboard: dashboardRoute,
+    catalog: "catalog",
+    loans: "loans",
+  };
+  const defaultName = isDosen ? "Dr. Mahmud" : "Ahmad Firdaus";
+  const displayName = userName || defaultName;
+  const initials = getInitials(displayName);
+
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-border shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-        <button onClick={() => navigate("dashboard")} className="flex items-center gap-2.5 shrink-0">
+        <button onClick={() => navigate(dashboardRoute)} className="flex items-center gap-2.5 shrink-0">
           <ImageWithFallback src={uinLogo} alt="Logo UIN Jakarta" className="w-11 h-11 object-contain drop-shadow-sm" />
           <div className="hidden sm:block">
             <div className="text-sm font-bold text-[#003087] leading-tight">Perpustakaan UIN Jakarta</div>
@@ -447,18 +493,21 @@ function TopNav({ navigate, currentPage, unreadCount }: {
         </button>
         <nav className="hidden md:flex items-center gap-1">
           {navLinks.map(({ label, page }) => (
-            <button key={page} onClick={() => navigate(page)}
+            <button key={page} onClick={() => navigate(routeMap[page])}
               className={cn("px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200",
-                currentPage === page ? "bg-[#003087] text-white shadow-sm" : "text-muted-foreground hover:text-[#003087] hover:bg-[#003087]/10"
+                activeNavPage === page ? "bg-[#003087] text-white shadow-sm" : "text-muted-foreground hover:text-[#003087] hover:bg-[#003087]/10"
               )}>
               {label}
             </button>
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate("profile")} className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-[#003087]/10 transition-colors">
-            <div className="w-8 h-8 bg-[#003087] rounded-xl flex items-center justify-center">
-              <span className="text-white text-xs font-bold">AF</span>
+          <button onClick={() => navigate(profileRoute)} className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-[#003087]/10 transition-colors">
+            <div className={cn(
+              "w-8 h-8 flex items-center justify-center transition-colors shadow-sm",
+              isDosen ? "bg-green-600 rounded-full" : "bg-[#003087] rounded-xl"
+            )}>
+              <span className="text-white text-xs font-bold">{initials}</span>
             </div>
           </button>
           <button onClick={() => setMobileMenu(!mobileMenu)} className="md:hidden p-2 rounded-xl hover:bg-[#003087]/10 text-muted-foreground transition-colors">
@@ -469,9 +518,9 @@ function TopNav({ navigate, currentPage, unreadCount }: {
       {mobileMenu && (
         <div className="md:hidden border-t border-border bg-white px-4 py-3 flex flex-col gap-1">
           {navLinks.map(({ label, page }) => (
-            <button key={page} onClick={() => { navigate(page); setMobileMenu(false); }}
+            <button key={page} onClick={() => { navigate(routeMap[page]); setMobileMenu(false); }}
               className={cn("w-full text-tersisa px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                currentPage === page ? "bg-[#003087] text-white" : "text-muted-foreground hover:bg-[#003087]/10 hover:text-[#003087]"
+                activeNavPage === page ? "bg-[#003087] text-white" : "text-muted-foreground hover:bg-[#003087]/10 hover:text-[#003087]"
               )}>
               {label}
             </button>
@@ -494,6 +543,7 @@ const adminNavItems: { icon: React.ElementType; label: string; page: Page }[] = 
   { icon: BookOpen, label: "Buku", page: "admin-books" },
   { icon: Users, label: "Anggota", page: "admin-members" },
   { icon: BookMarked, label: "Pinjaman", page: "admin-loans" },
+  { icon: Plus, label: "Usulan Buku", page: "admin-suggestions" },
   { icon: FileText, label: "Laporan", page: "admin-reports" },
   { icon: Settings, label: "Pengaturan", page: "admin-settings" },
 ];
@@ -876,7 +926,7 @@ const roleConfig: Record<Role, {
   dosen: {
     label: "Dosen", idLabel: "NIP", idPlaceholder: "cth. 197501012005011001",
     emailPlaceholder: "cth. dr.mahmud@uinjkt.ac.id",
-    icon: "👨‍🏫", desc: "Akses koleksi & referensi penelitian", dest: "dashboard",
+    icon: "👨‍🏫", desc: "Akses koleksi & referensi penelitian", dest: "dosen-dashboard",
   },
   admin: {
     label: "Admin", idLabel: "NITK", idPlaceholder: "cth. 202001012024031001",
@@ -885,7 +935,7 @@ const roleConfig: Record<Role, {
   },
 };
 
-function LoginPage({ navigate }: { navigate: (p: Page) => void }) {
+function LoginPage({ navigate, onLogin }: { navigate: (p: Page) => void; onLogin?: (role: Role) => void }) {
   const [role, setRole] = useState<Role>("mahasiswa");
   const [idNumber, setIdNumber] = useState("");
   const [email, setEmail] = useState("");
@@ -905,7 +955,11 @@ function LoginPage({ navigate }: { navigate: (p: Page) => void }) {
     if (!idNumber) { setError(`Harap masukkan ${cfg.idLabel} Anda.`); return; }
     if (!email || !password) { setError("Harap masukkan email dan kata sandi."); return; }
     setLoading(true); setError("");
-    setTimeout(() => { setLoading(false); navigate(cfg.dest); }, 1200);
+    setTimeout(() => {
+      setLoading(false);
+      onLogin?.(role);
+      navigate(cfg.dest);
+    }, 1200);
   };
 
   const sidebarInfo: Record<Role, { title: string; sub: string; stats: { label: string; value: string }[] }> = {
@@ -1037,7 +1091,7 @@ function LoginPage({ navigate }: { navigate: (p: Page) => void }) {
           <div className="mt-4 p-3 bg-[#003087]/5 border border-[#003087]/15 rounded-xl text-xs text-[#003087]">
             <strong>Demo:</strong> Isi {cfg.idLabel}, email, dan kata sandi apapun lalu klik Masuk.
             {role === "admin" && <span className="block mt-0.5 text-muted-foreground">Admin akan diarahkan ke dasbor pengelolaan.</span>}
-            {role === "dosen" && <span className="block mt-0.5 text-muted-foreground">Catatan: demo ini menggunakan dashboard Mahasiswa.</span>}
+            {role === "dosen" && <span className="block mt-0.5 text-muted-foreground">Catatan: demo ini menggunakan dashboard Dosen.</span>}
           </div>
         </div>
       </div>
@@ -1259,7 +1313,7 @@ function DashboardPage({ navigate, onSelectBook }: { navigate: (p: Page) => void
 // ─────────────────────────────────────────
 // PAGE: CATALOG
 // ─────────────────────────────────────────
-function CatalogPage({ navigate, onSelectBook }: { navigate: (p: Page) => void; onSelectBook: (b: Book) => void }) {
+function CatalogPage({ navigate, onSelectBook, userRole }: { navigate: (p: Page) => void; onSelectBook: (b: Book) => void; userRole?: Role }) {
   const [search, setSearch] = useState("");
   const [category, setKategori] = useState("Semua");
   const [sortBy, setSortBy] = useState("title");
@@ -1282,7 +1336,7 @@ function CatalogPage({ navigate, onSelectBook }: { navigate: (p: Page) => void; 
 
   return (
     <div className="min-h-screen bg-[#F4F7FF]">
-      <TopNav navigate={navigate} currentPage="catalog" unreadCount={2} />
+      <TopNav navigate={navigate} currentPage="catalog" unreadCount={2} userRole={userRole} />
       <motion.div {...pageMotion} className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
@@ -1407,7 +1461,7 @@ function CatalogPage({ navigate, onSelectBook }: { navigate: (p: Page) => void; 
 // ─────────────────────────────────────────
 // PAGE: BOOK DETAIL
 // ─────────────────────────────────────────
-function BookDetailPage({ navigate, book, onBorrow }: { navigate: (p: Page) => void; book: Book; onBorrow: () => void }) {
+function BookDetailPage({ navigate, book, onBorrow, userRole }: { navigate: (p: Page) => void; book: Book; onBorrow: () => void; userRole?: Role }) {
   const [tab, setTab] = useState<"aktif" | "terlambat" | "dikembalikan">("aktif");
   const [showReservationForm, setShowReservationForm] = useState(false);
   const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -1421,7 +1475,7 @@ function BookDetailPage({ navigate, book, onBorrow }: { navigate: (p: Page) => v
 
   return (
     <div className="min-h-screen bg-[#F4F7FF]">
-      <TopNav navigate={navigate} currentPage="catalog" unreadCount={2} />
+      <TopNav navigate={navigate} currentPage="catalog" unreadCount={2} userRole={userRole} />
       <motion.div {...pageMotion} className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-5">
           <button onClick={() => navigate("catalog")} className="hover:text-[#003087] transition-colors">Katalog</button>
@@ -1620,7 +1674,7 @@ const petugasList = [
 // ─────────────────────────────────────────
 // PAGE: FORM PEMINJAMAN
 // ─────────────────────────────────────────
-function BorrowFormPage({ navigate, book }: { navigate: (p: Page) => void; book: Book }) {
+function BorrowFormPage({ navigate, book, userRole }: { navigate: (p: Page) => void; book: Book; userRole?: Role }) {
   const [petugas, setPetugas] = useState("P01");
   const [tujuan, setTujuan] = useState("");
   const [noHp, setNoHp] = useState("");
@@ -1650,7 +1704,7 @@ function BorrowFormPage({ navigate, book }: { navigate: (p: Page) => void; book:
 
   return (
     <div className="min-h-screen bg-[#F4F7FF]">
-      <TopNav navigate={navigate} currentPage="catalog" unreadCount={2} />
+      <TopNav navigate={navigate} currentPage="catalog" unreadCount={2} userRole={userRole} />
       <motion.div {...pageMotion} className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-5">
           <button onClick={() => navigate("catalog")} className="hover:text-[#003087]">Katalog</button>
@@ -2047,7 +2101,7 @@ function EbookPage({ navigate, book }: { navigate: (p: Page) => void; book: Book
 // ─────────────────────────────────────────
 // PAGE: FORM PENGEMBALIAN
 // ─────────────────────────────────────────
-function ReturnFormPage({ navigate, loan }: { navigate: (p: Page) => void; loan: Loan }) {
+function ReturnFormPage({ navigate, loan, userRole }: { navigate: (p: Page) => void; loan: Loan; userRole?: Role }) {
   const [petugas, setPetugas] = useState("P01");
   const [kondisi, setKondisi] = useState("baik");
   const [catatan, setCatatan] = useState("");
@@ -2086,7 +2140,7 @@ function ReturnFormPage({ navigate, loan }: { navigate: (p: Page) => void; loan:
 
   return (
     <div className="min-h-screen bg-[#F4F7FF]">
-      <TopNav navigate={navigate} currentPage="loans" unreadCount={2} />
+      <TopNav navigate={navigate} currentPage="loans" unreadCount={2} userRole={userRole} />
       <motion.div {...pageMotion} className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-5">
           <button onClick={() => navigate("loans")} className="hover:text-[#003087]">Pinjaman Saya</button>
@@ -2298,7 +2352,7 @@ function BorrowSuccessPage({ navigate, book }: { navigate: (p: Page) => void; bo
 // ─────────────────────────────────────────
 // PAGE: LOANS
 // ─────────────────────────────────────────
-function LoansPage({ navigate, onSelectLoan }: { navigate: (p: Page) => void; onSelectLoan: (l: Loan) => void }) {
+function LoansPage({ navigate, onSelectLoan, userRole }: { navigate: (p: Page) => void; onSelectLoan: (l: Loan) => void; userRole?: Role }) {
   const [tab, setTab] = useState<"aktif" | "dikembalikan" | "terlambat">("aktif");
   const [loansState, setLoansState] = useState<Loan[]>(() => loans.slice());
   const [extendTarget, setExtendTarget] = useState<number | null>(null);
@@ -2315,7 +2369,7 @@ function LoansPage({ navigate, onSelectLoan }: { navigate: (p: Page) => void; on
 
   return (
     <div className="min-h-screen bg-[#F4F7FF]">
-      <TopNav navigate={navigate} currentPage="loans" unreadCount={2} />
+      <TopNav navigate={navigate} currentPage="loans" unreadCount={2} userRole={userRole} />
       <motion.div {...pageMotion} className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground">Pinjaman Saya</h1>
@@ -2600,6 +2654,291 @@ function ProfilePage({ navigate }: { navigate: (p: Page) => void }) {
             <FaqItem question="Bisakah saya mengakses e-book?" answer="Ya, UIN Jakarta menyediakan akses ke berbagai platform e-book termasuk SpringerLink, Elsevier, dan IEEE Xplore. Masuk dengan akun UIN Jakarta Anda untuk mengakses sumber daya ini." />
           </div>
         )}
+      </motion.div>
+    </div>
+  );
+}
+
+function DosenDashboardPage({ navigate, onSelectBook, onAddSuggestion }: { navigate: (p: Page) => void; onSelectBook: (b: Book) => void; onAddSuggestion?: (saran: any) => void }) {
+  const [showSaranForm, setShowSaranForm] = useState(false);
+  const [judul, setJudul] = useState("");
+  const [penulis, setPenulis] = useState("");
+  const [penerbit, setPenerbit] = useState("");
+  const [tahun, setTahun] = useState("");
+  const [noBuku, setNoBuku] = useState("");
+  const [alasan, setAlasan] = useState("");
+
+  const handleKirimSaran = (e: React.FormEvent) => {
+    e.preventDefault();
+    toast.success("Usulan buku berhasil dikirim kepada Admin.");
+    onAddSuggestion?.({ judul, penulis, penerbit, tahun, isbn: noBuku, alasan });
+    setJudul("");
+    setPenulis("");
+    setPenerbit("");
+    setTahun("");
+    setNoBuku("");
+    setAlasan("");
+    setShowSaranForm(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F4F7FF]">
+      <TopNav navigate={navigate} currentPage="dosen-dashboard" unreadCount={1} userRole="dosen" />
+      <motion.div {...pageMotion} className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Selamat pagi, Dr. Mahmud! 👨‍🏫</h1>
+            <p className="text-muted-foreground mt-0.5 text-sm">Selasa, 30 Juni 2026</p>
+          </div>
+          <Btn onClick={() => navigate("catalog")}><Search className="w-4 h-4" /> Telusuri Koleksi</Btn>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2 bg-white rounded-3xl border border-border shadow-sm p-6 flex flex-col justify-between min-h-[300px]">
+            <div>
+              <h2 className="text-xl font-bold text-foreground mb-2">Usulan Buku Dosen</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Sebagai dosen, Anda dapat mengusulkan buku referensi, buku ajar, atau literatur penelitian tambahan untuk pengadaan koleksi perpustakaan baru.
+              </p>
+              
+              <div className="bg-[#F4F7FF] rounded-2xl p-5 border border-border/50 mb-6">
+                <h3 className="font-semibold text-sm text-foreground mb-2">Mengapa mengusulkan buku?</h3>
+                <ul className="text-xs text-muted-foreground space-y-2 list-disc list-inside">
+                  <li>Mendukung materi perkuliahan terbaru</li>
+                  <li>Melengkapi referensi riset dan publikasi ilmiah</li>
+                  <li>Meningkatkan kualitas koleksi akademik fakultas</li>
+                </ul>
+              </div>
+            </div>
+
+            <div>
+              <button 
+                onClick={() => setShowSaranForm(true)} 
+                className="w-full sm:w-auto bg-[#003087] hover:bg-[#003087]/90 text-white font-bold py-3 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg"
+              >
+                <Plus className="w-5 h-5" /> Usulkan Buku Baru
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="bg-white rounded-3xl border border-border shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-foreground">Katalog Populer</h3>
+                <button onClick={() => navigate("catalog")} className="text-xs text-[#003087] font-semibold hover:underline">Lihat Semua</button>
+              </div>
+              <div className="flex flex-col gap-3">
+                {books.slice(0, 3).map(book => (
+                  <button key={book.id} onClick={() => { onSelectBook(book); navigate("book-detail"); }}
+                    className="flex items-center gap-3 p-2.5 rounded-2xl border border-border/50 hover:border-[#003087]/20 hover:bg-[#F4F7FF] text-left transition-all">
+                    <img src={book.cover} alt={book.title} className="w-10 h-14 object-cover rounded-lg bg-gray-100 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-foreground line-clamp-1">{book.title}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">{book.author}</div>
+                      <div className="text-[9px] text-[#003087] font-semibold mt-1 bg-[#003087]/5 px-2 py-0.5 rounded-md w-fit">{book.category}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      <Dialog open={showSaranForm} onOpenChange={setShowSaranForm}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Usulan Buku Baru</DialogTitle>
+            <DialogDescription>
+              Lengkapi formulir di bawah ini untuk mengajukan usulan pengadaan buku kepada Admin Perpustakaan.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleKirimSaran} className="space-y-4 mt-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-foreground">Nama / Judul Buku</label>
+              <input
+                required
+                value={judul}
+                onChange={e => setJudul(e.target.value)}
+                placeholder="Masukkan judul buku"
+                className="w-full rounded-xl border border-border bg-white text-foreground text-sm py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-[#003087]/30 focus:border-[#003087] placeholder:text-muted-foreground transition-all"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-foreground">Penulis</label>
+                <input
+                  required
+                  value={penulis}
+                  onChange={e => setPenulis(e.target.value)}
+                  placeholder="Nama penulis"
+                  className="w-full rounded-xl border border-border bg-white text-foreground text-sm py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-[#003087]/30 focus:border-[#003087] placeholder:text-muted-foreground transition-all"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-foreground">Penerbit</label>
+                <input
+                  required
+                  value={penerbit}
+                  onChange={e => setPenerbit(e.target.value)}
+                  placeholder="Nama penerbit"
+                  className="w-full rounded-xl border border-border bg-white text-foreground text-sm py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-[#003087]/30 focus:border-[#003087] placeholder:text-muted-foreground transition-all"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-foreground">Tahun Terbit</label>
+                <input
+                  required
+                  type="number"
+                  value={tahun}
+                  onChange={e => setTahun(e.target.value)}
+                  placeholder="cth. 2026"
+                  className="w-full rounded-xl border border-border bg-white text-foreground text-sm py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-[#003087]/30 focus:border-[#003087] placeholder:text-muted-foreground transition-all"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-foreground">Nomor Buku / ISBN</label>
+                <input
+                  value={noBuku}
+                  onChange={e => setNoBuku(e.target.value)}
+                  placeholder="cth. 978-3-16..."
+                  className="w-full rounded-xl border border-border bg-white text-foreground text-sm py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-[#003087]/30 focus:border-[#003087] placeholder:text-muted-foreground transition-all"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-foreground">Alasan Pengajuan</label>
+              <textarea
+                required
+                rows={3}
+                value={alasan}
+                onChange={e => setAlasan(e.target.value)}
+                placeholder="Berikan alasan mengapa buku ini penting untuk perpustakaan..."
+                className="w-full rounded-xl border border-border bg-white text-foreground text-sm py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-[#003087]/30 focus:border-[#003087] placeholder:text-muted-foreground transition-all resize-none"
+              />
+            </div>
+            <DialogFooter className="mt-4 gap-2">
+              <button type="button" onClick={() => setShowSaranForm(false)} className="px-4 py-2.5 rounded-xl border border-border hover:bg-gray-50 text-sm font-medium transition-colors">
+                Batal
+              </button>
+              <button type="submit" className="px-4 py-2.5 rounded-xl bg-[#003087] hover:bg-[#003087]/90 text-white text-sm font-semibold transition-colors flex items-center gap-1.5">
+                <Check className="w-4 h-4" /> Kirim Saran
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function DosenProfilePage({ navigate, onLogout }: { navigate: (p: Page) => void; onLogout?: () => void }) {
+  const [aktifTab, setAktifTab] = useState<"ringkasan" | "pengaturan">("ringkasan");
+
+  return (
+    <div className="min-h-screen bg-[#F4F7FF]">
+      <TopNav navigate={navigate} currentPage="dosen-profile" unreadCount={1} userRole="dosen" />
+      <motion.div {...pageMotion} className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        <div className="bg-gradient-to-br from-[#003087] to-[#1565C0] rounded-3xl p-6 mb-6 text-white">
+          <div className="flex items-center gap-5">
+            <div className="w-20 h-20 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center shadow-lg text-2xl font-bold shrink-0">
+              DM
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-bold">Dr. Mahmud</h1>
+              <p className="text-white/80 text-sm">NIP 197501012005011001</p>
+              <p className="text-white/70 text-sm">Dosen Teknik Informatika</p>
+              <div className="mt-2">
+                <span className="text-xs bg-white/20 px-2.5 py-0.5 rounded-full">Fakultas Sains dan Teknologi</span>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mt-5">
+            {[{ label: "Publikasi", value: "18" }, { label: "Keanggotaan", value: "4" }].map(({ label, value }) => (
+              <div key={label} className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
+                <div className="text-xl font-bold">{value}</div>
+                <div className="text-white/70 text-xs">{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-1 mb-5 bg-white p-1 rounded-xl border border-border shadow-sm w-fit">
+          {(["ringkasan", "pengaturan"] as const).map(t => (
+            <button key={t} onClick={() => setAktifTab(t)}
+              className={cn("px-4 py-2 rounded-lg text-sm font-semibold transition-all",
+                aktifTab === t ? "bg-[#003087] text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {aktifTab === "ringkasan" && (
+          <div className="flex flex-col gap-4">
+            <div className="bg-white rounded-2xl border border-border shadow-sm p-5">
+              <h3 className="font-bold text-foreground mb-4">Informasi Dosen</h3>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {[
+                  { label: "Nama Lengkap", value: "Dr. Mahmud" },
+                  { label: "NIP", value: "197501012005011001" },
+                  { label: "Email", value: "dr.mahmud@uinjkt.ac.id" },
+                  { label: "Bidang Penelitian", value: "Sistem Informasi & AI" },
+                  { label: "Fakultas", value: "Fakultas Sains dan Teknologi" },
+                  { label: "Bergabung Sejak", value: "2015" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-[#F4F7FF] rounded-xl p-3">
+                    <div className="text-xs text-muted-foreground font-medium mb-0.5">{label}</div>
+                    <div className="text-sm font-semibold text-foreground">{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-border shadow-sm p-5">
+              <h3 className="font-bold text-foreground mb-4">Aktivitas Terkini</h3>
+              <div className="flex flex-col divide-y divide-border">
+                {loans.slice(0, 3).map(loan => (
+                  <div key={loan.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                    <img src={loan.bookCover} alt={loan.bookJudul} className="w-10 h-14 object-cover rounded-lg bg-gray-100 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground line-clamp-1">{loan.bookJudul}</div>
+                      <div className="text-xs text-muted-foreground">{loan.borrowDate}</div>
+                    </div>
+                    <Badge variant={loan.status === "dikembalikan" ? "success" : loan.status === "terlambat" ? "error" : "default"}>{loan.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {aktifTab === "pengaturan" && (
+          <div className="bg-white rounded-2xl border border-border shadow-sm p-5 flex flex-col gap-4">
+            <h3 className="font-bold text-foreground">Pengaturan Akun</h3>
+            {[
+              { label: "Email Pemberitahuan Seminar", desc: "Terima pengingat seminar dan konferensi", defaultOn: true },
+              { label: "Akses Jurnal Elektronik", desc: "Aktifkan akses otomatis ke jurnal riset", defaultOn: true },
+              { label: "Daftar Bimbingan", desc: "Terima pemberitahuan mahasiswa bimbingan", defaultOn: true },
+              { label: "Newsletter Akademik", desc: "Terima buletin fakultas bulanan", defaultOn: false },
+            ].map(({ label, desc, defaultOn }) => (
+              <div key={label} className="flex items-center justify-between p-3 bg-[#F4F7FF] rounded-xl">
+                <div className="min-w-0 mr-4">
+                  <div className="text-sm font-medium text-foreground">{label}</div>
+                  <div className="text-xs text-muted-foreground">{desc}</div>
+                </div>
+                <ToggleSwitch defaultOn={defaultOn} />
+              </div>
+            ))}
+            <div className="border-t border-border pt-4">
+              <Btn variant="danger" size="md" onClick={() => navigate("landing")}> 
+                <LogOut className="w-4 h-4" /> Keluar
+              </Btn>
+            </div>
+          </div>
+        )}
+
       </motion.div>
     </div>
   );
@@ -3415,37 +3754,139 @@ function AdminSettingsPage({ navigate }: { navigate: (p: Page) => void }) {
 }
 
 // ─────────────────────────────────────────
+// ADMIN: BOOK SUGGESTIONS
+// ─────────────────────────────────────────
+function AdminSuggestionsPage({ navigate, suggestions }: { navigate: (p: Page) => void; suggestions: BookSuggestion[] }) {
+  const statusVariant: Record<SuggestionStatus, BadgeVariant> = {
+    Menunggu: "warning",
+    Disetujui: "success",
+    Ditolak: "error",
+  };
+
+  return (
+    <AdminLayout navigate={navigate} currentPage="admin-suggestions" title="Usulan Buku" subtitle="Daftar usulan buku dosen (read-only)">
+      <motion.div {...pageMotion} className="flex flex-col gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: "Total Usulan", value: String(suggestions.length), note: "dari dosen" },
+            { label: "Menunggu", value: String(suggestions.filter(item => item.status === "Menunggu").length), note: "perlu ditinjau" },
+            { label: "Disetujui", value: String(suggestions.filter(item => item.status === "Disetujui").length), note: "siap diproses" },
+          ].map(card => (
+            <div key={card.label} className="bg-white rounded-2xl border border-border shadow-sm p-5">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">{card.label}</div>
+              <div className="mt-2 text-3xl font-bold text-foreground">{card.value}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{card.note}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-border">
+            <h3 className="font-bold text-foreground text-lg">Daftar Usulan Buku</h3>
+            <p className="text-sm text-muted-foreground mt-1">Sumber data diambil dari katalog aplikasi dan hanya ditampilkan untuk admin.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border bg-[#F4F7FF]">
+                  {[
+                    "No",
+                    "Judul Buku",
+                    "Penulis",
+                    "Penerbit",
+                    "Tahun Terbit",
+                    "Pengusul",
+                    "Status",
+                  ].map(header => (
+                    <th key={header} className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {suggestions.map((item, index) => (
+                  <tr key={item.id} className="hover:bg-[#F4F7FF]/50 transition-colors">
+                    <td className="px-4 py-3 text-sm font-semibold text-foreground">{index + 1}</td>
+                    <td className="px-4 py-3">
+                      <div className="text-sm font-semibold text-foreground">{item.judul}</div>
+                      <div className="text-xs text-muted-foreground">Usulan dari katalog yang sudah tersedia</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.penulis}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.penerbit}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.tahun}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{item.pengusul}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={statusVariant[item.status]}>{item.status}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </motion.div>
+    </AdminLayout>
+  );
+}
+
+// ─────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState<Page>("landing");
+  const [role, setRole] = useState<Role>("mahasiswa");
   const [selectedBook, setSelectedBook] = useState<Book>(books[0]);
   const [selectedLoan, setSelectedLoan] = useState<Loan>(loans[0]);
+  const [suggestions, setSuggestions] = useState<BookSuggestion[]>([
+    { id: "1", judul: books[5].title, penulis: books[5].author, penerbit: books[5].publisher, tahun: String(books[5].year), pengusul: "Dr. Mahmud", status: "Menunggu", tanggal: "2026-06-28" },
+    { id: "2", judul: books[0].title, penulis: books[0].author, penerbit: books[0].publisher, tahun: String(books[0].year), pengusul: "Prof. Dr. Budi Santoso", status: "Disetujui", tanggal: "2026-06-25" },
+    { id: "3", judul: books[1].title, penulis: books[1].author, penerbit: books[1].publisher, tahun: String(books[1].year), pengusul: "Dr. Rina Astuti", status: "Ditolak", tanggal: "2026-06-24" },
+    { id: "4", judul: books[2].title, penulis: books[2].author, penerbit: books[2].publisher, tahun: String(books[2].year), pengusul: "Dr. Siti Aisyah", status: "Menunggu", tanggal: "2026-06-22" },
+    { id: "5", judul: books[3].title, penulis: books[3].author, penerbit: books[3].publisher, tahun: String(books[3].year), pengusul: "Prof. Ahmad Fauzi", status: "Disetujui", tanggal: "2026-06-20" },
+  ]);
 
   const navigate = (p: Page) => {
     setPage(p);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const handleAddSuggestion = (saran: BookSuggestionInput) => {
+    const newSaran = {
+      id: String(suggestions.length + 1),
+      judul: saran.judul,
+      penulis: saran.penulis,
+      penerbit: saran.penerbit,
+      tahun: saran.tahun,
+      pengusul: "Dr. Mahmud",
+      status: "Menunggu" as const,
+      tanggal: new Date().toISOString().split("T")[0]
+    };
+    setSuggestions(prev => [newSaran, ...prev]);
+  };
+
   switch (page) {
     case "landing":        return <LandingPage navigate={navigate} />;
-    case "login":          return <LoginPage navigate={navigate} />;
+    case "login":          return <LoginPage navigate={navigate} onLogin={(r) => setRole(r)} />;
     case "dashboard":      return <DashboardPage navigate={navigate} onSelectBook={b => { setSelectedBook(b); }} />;
-    case "catalog":        return <CatalogPage navigate={navigate} onSelectBook={b => { setSelectedBook(b); }} />;
-    case "book-detail":    return <BookDetailPage navigate={navigate} book={selectedBook} onBorrow={() => navigate("borrow-form")} />;
+    case "dosen-dashboard": return <DosenDashboardPage navigate={navigate} onSelectBook={b => { setSelectedBook(b); }} onAddSuggestion={handleAddSuggestion} />;
+    case "catalog":        return <CatalogPage navigate={navigate} onSelectBook={b => { setSelectedBook(b); }} userRole={role} />;
+    case "book-detail":    return <BookDetailPage navigate={navigate} book={selectedBook} onBorrow={() => navigate("borrow-form")} userRole={role} />;
     case "ebook":          return <EbookPage navigate={navigate} book={selectedBook} />;
-    case "borrow-form":    return <BorrowFormPage navigate={navigate} book={selectedBook} />;
+    case "borrow-form":    return <BorrowFormPage navigate={navigate} book={selectedBook} userRole={role} />;
     case "borrow-success": return <BorrowSuccessPage navigate={navigate} book={selectedBook} />;
-    case "return-form":    return <ReturnFormPage navigate={navigate} loan={selectedLoan} />;
-    case "loans":          return <LoansPage navigate={navigate} onSelectLoan={l => { setSelectedLoan(l); }} />;
+    case "return-form":    return <ReturnFormPage navigate={navigate} loan={selectedLoan} userRole={role} />;
+    case "loans":          return <LoansPage navigate={navigate} onSelectLoan={l => { setSelectedLoan(l); }} userRole={role} />;
     // notifications page removed
     case "profile":        return <ProfilePage navigate={navigate} />;
+    case "dosen-profile":   return <DosenProfilePage navigate={navigate} onLogout={() => setRole("mahasiswa")} />;
     case "admin-dashboard": return <AdminDashboardPage navigate={navigate} />;
     case "admin-books":    return <AdminBooksPage navigate={navigate} />;
     case "admin-members":  return <AdminMembersPage navigate={navigate} />;
     case "admin-loans":    return <AdminLoansPage navigate={navigate} />;
     case "admin-reports":  return <AdminReportsPage navigate={navigate} />;
     case "admin-settings": return <AdminSettingsPage navigate={navigate} />;
+    case "admin-suggestions": return <AdminSuggestionsPage navigate={navigate} suggestions={suggestions} />;
     default:               return <LandingPage navigate={navigate} />;
   }
 }
